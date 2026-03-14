@@ -5,6 +5,7 @@
  */
 
 import * as fs from 'fs';
+import * as os from 'os';
 import initSqlJs, { Database as SqlJsDatabase, SqlValue } from 'sql.js';
 import { getDatabasePath, ensureDataDir, getBackupsDir, ensureBackupsDir, cleanupActiveConfigTempFile } from './config.js';
 import * as path from 'path';
@@ -61,23 +62,18 @@ function cleanupOrphanedTempFiles(): void {
 // Clean up in-progress temp files on signal-based termination
 function cleanupAllTempFiles(): void {
   if (activeTempPath) {
-    try {
-      if (fs.existsSync(activeTempPath)) {
-        fs.unlinkSync(activeTempPath);
-      }
-    } catch {
-      // Best effort
-    }
+    try { fs.unlinkSync(activeTempPath); } catch { /* best effort */ }
     activeTempPath = null;
   }
   cleanupActiveConfigTempFile();
 }
 
 // Register signal handlers once (covers both database and config temp files)
+const signals = os.constants.signals;
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
   process.on(sig, () => {
     cleanupAllTempFiles();
-    process.exit(128 + (sig === 'SIGTERM' ? 15 : sig === 'SIGINT' ? 2 : 1));
+    process.exit(128 + signals[sig]);
   });
 }
 
@@ -138,8 +134,10 @@ export async function initDb(): Promise<SqlJsDatabase> {
             // Save recovered database to main path
             const data = loadedDb.export();
             const tempPath = `${dbPath}.tmp.${process.pid}.${Date.now()}`;
+            activeTempPath = tempPath;
             fs.writeFileSync(tempPath, Buffer.from(data));
             fs.renameSync(tempPath, dbPath);
+            activeTempPath = null;
           }
         }
 

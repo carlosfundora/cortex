@@ -2367,6 +2367,7 @@ import * as readline2 from "readline";
 // src/database.ts
 var import_sql = __toESM(require_sql_wasm(), 1);
 import * as fs2 from "fs";
+import * as os2 from "os";
 
 // src/config.ts
 import * as fs from "fs";
@@ -6564,9 +6565,7 @@ var activeConfigTempPath = null;
 function cleanupActiveConfigTempFile() {
   if (activeConfigTempPath) {
     try {
-      if (fs.existsSync(activeConfigTempPath)) {
-        fs.unlinkSync(activeConfigTempPath);
-      }
+      fs.unlinkSync(activeConfigTempPath);
     } catch {
     }
     activeConfigTempPath = null;
@@ -6649,19 +6648,18 @@ function cleanupOrphanedTempFiles() {
 function cleanupAllTempFiles() {
   if (activeTempPath) {
     try {
-      if (fs2.existsSync(activeTempPath)) {
-        fs2.unlinkSync(activeTempPath);
-      }
+      fs2.unlinkSync(activeTempPath);
     } catch {
     }
     activeTempPath = null;
   }
   cleanupActiveConfigTempFile();
 }
+var signals = os2.constants.signals;
 for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) {
   process.on(sig, () => {
     cleanupAllTempFiles();
-    process.exit(128 + (sig === "SIGTERM" ? 15 : sig === "SIGINT" ? 2 : 1));
+    process.exit(128 + signals[sig]);
   });
 }
 async function initDb() {
@@ -6700,8 +6698,10 @@ async function initDb() {
           if (loadedDb) {
             const data = loadedDb.export();
             const tempPath = `${dbPath}.tmp.${process.pid}.${Date.now()}`;
+            activeTempPath = tempPath;
             fs2.writeFileSync(tempPath, Buffer.from(data));
             fs2.renameSync(tempPath, dbPath);
+            activeTempPath = null;
           }
         }
         if (loadedDb) {

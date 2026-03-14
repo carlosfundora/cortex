@@ -6666,9 +6666,7 @@ var activeConfigTempPath = null;
 function cleanupActiveConfigTempFile() {
   if (activeConfigTempPath) {
     try {
-      if (fs.existsSync(activeConfigTempPath)) {
-        fs.unlinkSync(activeConfigTempPath);
-      }
+      fs.unlinkSync(activeConfigTempPath);
     } catch {
     }
     activeConfigTempPath = null;
@@ -7004,6 +7002,7 @@ import { spawn, execSync } from "child_process";
 // src/database.ts
 var import_sql = __toESM(require_sql_wasm(), 1);
 import * as fs2 from "fs";
+import * as os2 from "os";
 import * as path2 from "path";
 import * as crypto2 from "crypto";
 var dbInstance = null;
@@ -7038,19 +7037,18 @@ function cleanupOrphanedTempFiles() {
 function cleanupAllTempFiles() {
   if (activeTempPath) {
     try {
-      if (fs2.existsSync(activeTempPath)) {
-        fs2.unlinkSync(activeTempPath);
-      }
+      fs2.unlinkSync(activeTempPath);
     } catch {
     }
     activeTempPath = null;
   }
   cleanupActiveConfigTempFile();
 }
+var signals = os2.constants.signals;
 for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) {
   process.on(sig, () => {
     cleanupAllTempFiles();
-    process.exit(128 + (sig === "SIGTERM" ? 15 : sig === "SIGINT" ? 2 : 1));
+    process.exit(128 + signals[sig]);
   });
 }
 async function initDb() {
@@ -7089,8 +7087,10 @@ async function initDb() {
           if (loadedDb) {
             const data = loadedDb.export();
             const tempPath = `${dbPath}.tmp.${process.pid}.${Date.now()}`;
+            activeTempPath = tempPath;
             fs2.writeFileSync(tempPath, Buffer.from(data));
             fs2.renameSync(tempPath, dbPath);
+            activeTempPath = null;
           }
         }
         if (loadedDb) {
@@ -9270,7 +9270,7 @@ async function handleSetup() {
   console.log("  \u2713 Database initialized");
   const fs5 = await import("fs");
   const path3 = await import("path");
-  const os2 = await import("os");
+  const os3 = await import("os");
   const pluginDir = new URL(".", import.meta.url).pathname.replace("/dist/", "");
   const nodeModulesPath = `${pluginDir}/node_modules`;
   if (!fs5.existsSync(nodeModulesPath)) {
@@ -9300,7 +9300,7 @@ async function handleSetup() {
     return;
   }
   console.log("  \u23F3 Configuring statusline...");
-  const claudeDir = path3.join(os2.homedir(), ".claude");
+  const claudeDir = path3.join(os3.homedir(), ".claude");
   const claudeSettingsPath = path3.join(claudeDir, "settings.json");
   const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || pluginDir;
   const statuslineResult = configureClaudeStatusline(claudeSettingsPath, pluginRoot);

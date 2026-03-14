@@ -241,13 +241,7 @@ let activeConfigTempPath: string | null = null;
  */
 export function cleanupActiveConfigTempFile(): void {
   if (activeConfigTempPath) {
-    try {
-      if (fs.existsSync(activeConfigTempPath)) {
-        fs.unlinkSync(activeConfigTempPath);
-      }
-    } catch {
-      // Best effort
-    }
+    try { fs.unlinkSync(activeConfigTempPath); } catch { /* best effort */ }
     activeConfigTempPath = null;
   }
 }
