@@ -232,6 +232,26 @@ export function loadConfig(): Config {
   }
 }
 
+// Track in-progress config temp file for cleanup on process kill
+let activeConfigTempPath: string | null = null;
+
+/**
+ * Clean up the in-progress config temp file.
+ * Called by database.ts signal handlers.
+ */
+export function cleanupActiveConfigTempFile(): void {
+  if (activeConfigTempPath) {
+    try {
+      if (fs.existsSync(activeConfigTempPath)) {
+        fs.unlinkSync(activeConfigTempPath);
+      }
+    } catch {
+      // Best effort
+    }
+    activeConfigTempPath = null;
+  }
+}
+
 /**
  * Atomic file write helper
  * Uses temp-file + rename to prevent corruption on crash
@@ -239,10 +259,13 @@ export function loadConfig(): Config {
 function atomicWriteFileSync(filePath: string, content: string): void {
   const tempPath = `${filePath}.tmp.${process.pid}.${Date.now()}`;
   try {
+    activeConfigTempPath = tempPath;
     fs.writeFileSync(tempPath, content, 'utf8');
     fs.renameSync(tempPath, filePath);  // Atomic on POSIX
+    activeConfigTempPath = null;
   } catch (error) {
-    // Clean up temp file if rename failed
+    activeConfigTempPath = null;
+    // Clean up temp file if write/rename failed
     try {
       if (fs.existsSync(tempPath)) {
         fs.unlinkSync(tempPath);

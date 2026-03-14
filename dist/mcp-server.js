@@ -6560,6 +6560,18 @@ function loadConfig() {
     return DEFAULT_CONFIG;
   }
 }
+var activeConfigTempPath = null;
+function cleanupActiveConfigTempFile() {
+  if (activeConfigTempPath) {
+    try {
+      if (fs.existsSync(activeConfigTempPath)) {
+        fs.unlinkSync(activeConfigTempPath);
+      }
+    } catch {
+    }
+    activeConfigTempPath = null;
+  }
+}
 function getAnalyticsPath() {
   return path.join(getDataDir(), "analytics.json");
 }
@@ -6609,6 +6621,49 @@ var dbInstance = null;
 var SQL = null;
 var fts5Available = false;
 var initPromise = null;
+var activeTempPath = null;
+function cleanupOrphanedTempFiles() {
+  const dataDir = path2.dirname(getDatabasePath());
+  try {
+    const files = fs2.readdirSync(dataDir);
+    const currentPid = process.pid;
+    for (const file of files) {
+      const match = file.match(/\.tmp\.(\d+)\.\d+$/);
+      if (!match)
+        continue;
+      const filePid = parseInt(match[1], 10);
+      if (filePid === currentPid)
+        continue;
+      try {
+        process.kill(filePid, 0);
+      } catch {
+        try {
+          fs2.unlinkSync(path2.join(dataDir, file));
+        } catch {
+        }
+      }
+    }
+  } catch {
+  }
+}
+function cleanupAllTempFiles() {
+  if (activeTempPath) {
+    try {
+      if (fs2.existsSync(activeTempPath)) {
+        fs2.unlinkSync(activeTempPath);
+      }
+    } catch {
+    }
+    activeTempPath = null;
+  }
+  cleanupActiveConfigTempFile();
+}
+for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) {
+  process.on(sig, () => {
+    cleanupAllTempFiles();
+    process.exit(128 + (sig === "SIGTERM" ? 15 : sig === "SIGINT" ? 2 : 1));
+  });
+}
 async function initDb() {
   if (dbInstance) {
     return dbInstance;
@@ -6623,6 +6678,7 @@ async function initDb() {
       }
       ensureDataDir();
       const dbPath = getDatabasePath();
+      cleanupOrphanedTempFiles();
       createBackupOnStartup();
       if (fs2.existsSync(dbPath)) {
         let loadedDb = null;
@@ -6901,9 +6957,12 @@ function saveDb(db) {
   const dbPath = getDatabasePath();
   const tempPath = `${dbPath}.tmp.${process.pid}.${Date.now()}`;
   try {
+    activeTempPath = tempPath;
     fs2.writeFileSync(tempPath, buffer);
     fs2.renameSync(tempPath, dbPath);
+    activeTempPath = null;
   } catch (error) {
+    activeTempPath = null;
     try {
       if (fs2.existsSync(tempPath)) {
         fs2.unlinkSync(tempPath);

@@ -6,7 +6,7 @@
 
 import * as fs from 'fs';
 import initSqlJs, { Database as SqlJsDatabase, SqlValue } from 'sql.js';
-import { getDatabasePath, ensureDataDir, getBackupsDir, ensureBackupsDir } from './config.js';
+import { getDatabasePath, ensureDataDir, getBackupsDir, ensureBackupsDir, cleanupActiveConfigTempFile } from './config.js';
 import * as path from 'path';
 import type { Memory, MemoryInput, DbStats, SessionTurn, TurnInput } from './types.js';
 import * as crypto from 'crypto';
@@ -19,6 +19,67 @@ let dbInstance: SqlJsDatabase | null = null;
 let SQL: initSqlJs.SqlJsStatic | null = null;
 let fts5Available = false;
 let initPromise: Promise<SqlJsDatabase> | null = null;
+
+// Track in-progress temp file for cleanup on process kill
+let activeTempPath: string | null = null;
+
+/**
+ * Clean up orphaned temp files from previous crashed processes.
+ * These are left behind when a process is killed between writeFileSync and renameSync.
+ * Handles both memory.db.tmp.* and other *.tmp.* files (sessions.json, etc.)
+ */
+function cleanupOrphanedTempFiles(): void {
+  const dataDir = path.dirname(getDatabasePath());
+  try {
+    const files = fs.readdirSync(dataDir);
+    const currentPid = process.pid;
+    for (const file of files) {
+      // Match *.tmp.{pid}.{timestamp} pattern
+      const match = file.match(/\.tmp\.(\d+)\.\d+$/);
+      if (!match) continue;
+      const filePid = parseInt(match[1], 10);
+      // Skip temp files from our own process (in-progress write)
+      if (filePid === currentPid) continue;
+      try {
+        // Check if the owning process is still alive
+        process.kill(filePid, 0);
+        // Process exists — skip its temp file
+      } catch {
+        // Process is dead — safe to remove orphaned temp file
+        try {
+          fs.unlinkSync(path.join(dataDir, file));
+        } catch {
+          // Ignore removal errors
+        }
+      }
+    }
+  } catch {
+    // Non-fatal — don't block startup
+  }
+}
+
+// Clean up in-progress temp files on signal-based termination
+function cleanupAllTempFiles(): void {
+  if (activeTempPath) {
+    try {
+      if (fs.existsSync(activeTempPath)) {
+        fs.unlinkSync(activeTempPath);
+      }
+    } catch {
+      // Best effort
+    }
+    activeTempPath = null;
+  }
+  cleanupActiveConfigTempFile();
+}
+
+// Register signal handlers once (covers both database and config temp files)
+for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
+  process.on(sig, () => {
+    cleanupAllTempFiles();
+    process.exit(128 + (sig === 'SIGTERM' ? 15 : sig === 'SIGINT' ? 2 : 1));
+  });
+}
 
 /**
  * Initialize sql.js and load or create database
@@ -43,6 +104,9 @@ export async function initDb(): Promise<SqlJsDatabase> {
 
       ensureDataDir();
       const dbPath = getDatabasePath();
+
+      // Clean up orphaned temp files from previous crashed processes
+      cleanupOrphanedTempFiles();
 
       // Create backup before loading existing database
       createBackupOnStartup();
@@ -450,10 +514,13 @@ export function saveDb(db: SqlJsDatabase): void {
   // Atomic write: temp file + rename
   const tempPath = `${dbPath}.tmp.${process.pid}.${Date.now()}`;
   try {
+    activeTempPath = tempPath;
     fs.writeFileSync(tempPath, buffer);
     fs.renameSync(tempPath, dbPath);  // Atomic on POSIX
+    activeTempPath = null;
   } catch (error) {
-    // Clean up temp file if rename failed
+    activeTempPath = null;
+    // Clean up temp file if write/rename failed
     try {
       if (fs.existsSync(tempPath)) {
         fs.unlinkSync(tempPath);

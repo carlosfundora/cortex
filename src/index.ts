@@ -154,7 +154,7 @@ async function main() {
       stack: error instanceof Error ? error.stack : undefined,
     });
     console.error(`[Cortex Error] ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
     closeDb();
   }
