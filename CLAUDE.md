@@ -236,6 +236,25 @@ Analytics are stored at `~/.cortex/analytics.json` and track:
 - **@xenova/transformers**: ONNX embeddings (external)
 - **@anthropic-ai/sdk**: API types (external)
 
+## Release Checklist
+
+1. **Version bump** — update ALL of these files:
+   - `package.json`
+   - `.claude-plugin/plugin.json`
+   - `.claude-plugin/marketplace.json`
+   - `src/mcp-server.ts` (`serverInfo.version` in `handleInitialize`)
+2. **Verify no stale versions** — `grep -r "OLD_VERSION" package.json .claude-plugin/ src/`
+3. **Update CHANGELOG.md** — add entry at top
+4. **Build** — `npm run build` (rebuilds dist/ with new version)
+5. **Typecheck** — `npx tsc --noEmit`
+6. **Commit** — `chore: release vX.Y.Z`
+7. **Tag** — `git tag vX.Y.Z`
+8. **Push** — `git push && git push --tags`
+9. **GitHub release** — `gh release create vX.Y.Z`
+   - **Check previous release first**: `gh release view <prev-tag>` and match its format
+   - Must include the "Updating from v2.x" section with plugin update commands, setup instructions, restart note, and the marketplace-first warning link
+   - Include "Full Changelog" compare link
+
 ## Development Notes
 
 - Uses esbuild for bundling with external dependencies
