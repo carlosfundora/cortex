@@ -768,7 +768,7 @@ class MCPServer {
         },
         serverInfo: {
           name: 'cortex-memory',
-          version: '2.1.3',
+          version: '2.1.4',
         },
       },
     };
