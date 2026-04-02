@@ -7331,10 +7331,10 @@ function cosineSimilarity(a, b) {
 }
 
 // src/embeddings.ts
-var MODEL_NAME = "nomic-ai/nomic-embed-text-v1.5";
-var EMBEDDING_DIM = 768;
-var PASSAGE_PREFIX = "search_document: ";
-var QUERY_PREFIX = "search_query: ";
+var MODEL_NAME = process.env.CORTEX_EMBEDDING_MODEL || "mixedbread-ai/mxbai-embed-large-v1";
+var EMBEDDING_DIM = Number.parseInt(process.env.CORTEX_EMBEDDING_DIM || "1024", 10);
+var PASSAGE_PREFIX = process.env.CORTEX_EMBEDDING_PASSAGE_PREFIX || "";
+var QUERY_PREFIX = process.env.CORTEX_EMBEDDING_QUERY_PREFIX || "";
 var embedder = null;
 var initPromise2 = null;
 var pipelineFunc = null;

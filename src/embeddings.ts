@@ -7,12 +7,12 @@
 // Configuration
 // ============================================================================
 
-const MODEL_NAME = 'nomic-ai/nomic-embed-text-v1.5';
-const EMBEDDING_DIM = 768;
+const MODEL_NAME = process.env.CORTEX_EMBEDDING_MODEL || 'mixedbread-ai/mxbai-embed-large-v1';
+const EMBEDDING_DIM = Number.parseInt(process.env.CORTEX_EMBEDDING_DIM || '1024', 10);
 
-// Prefixes for Nomic Embed v1.5 (requires task prefixes)
-const PASSAGE_PREFIX = 'search_document: ';
-const QUERY_PREFIX = 'search_query: ';
+// Optional prefixes for models that benefit from asymmetric retrieval prompts.
+const PASSAGE_PREFIX = process.env.CORTEX_EMBEDDING_PASSAGE_PREFIX || '';
+const QUERY_PREFIX = process.env.CORTEX_EMBEDDING_QUERY_PREFIX || '';
 
 // ============================================================================
 // Embedder State
@@ -95,7 +95,6 @@ export function getModelName(): string {
 
 /**
  * Generate embeddings for passages (content to be stored)
- * Uses "passage: " prefix as per BGE model convention
  */
 export async function embedPassages(texts: string[]): Promise<Float32Array[]> {
   const pipe = await initEmbedder();
@@ -128,7 +127,6 @@ export async function embedPassage(text: string): Promise<Float32Array> {
 
 /**
  * Generate embedding for a search query
- * Uses "query: " prefix as per BGE model convention
  */
 export async function embedQuery(text: string): Promise<Float32Array> {
   const pipe = await initEmbedder();

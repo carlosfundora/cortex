@@ -14,7 +14,7 @@ import { debug } from './logger.js';
 import type { ArchiveResult, TranscriptMessage, ParseResult } from './types.js';
 
 // ============================================================================
-// Configuration - Optimized for Nomic Embed v1.5
+// Configuration - optimized for the configured embedding model
 // ============================================================================
 
 // Chunk size settings (research-backed optimal range for semantic search)
@@ -311,7 +311,7 @@ function isValuable(content: string): boolean {
 
 /**
  * Extract meaningful chunks from content
- * Optimized for Nomic Embed v1.5 with 200-600 char target range
+ * Optimized for compact semantic chunks with 200-600 char target range
  */
 function extractChunks(content: string, role: 'user' | 'assistant' = 'assistant'): string[] {
   const chunks: string[] = [];
